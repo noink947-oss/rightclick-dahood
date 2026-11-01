@@ -1,0 +1,149 @@
+-- Wait for game load
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local isArmed = false
+local shoulderActive = false
+
+-- Blacklisted tools (lowercase)
+local blacklistedTools = {
+    ["katana"] = true,
+}
+
+-- 1. Create the UI (Your Custom UI)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+local TextButton = Instance.new('TextButton')
+TextButton.Parent = ScreenGui
+TextButton.Visible = true
+TextButton.Size = UDim2.new(0, 210, 0, 94)
+-- Start off screen to the right
+TextButton.Position = UDim2.new(1.2, 0, 0, -12)
+TextButton.Rotation = 0
+TextButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.BackgroundTransparency = 0
+TextButton.BorderSizePixel = 0
+TextButton.BorderColor3 = Color3.fromRGB(27, 42, 53)
+TextButton.Text = "cl6 right click"
+TextButton.TextColor3 = Color3.fromRGB(27, 42, 53)
+TextButton.TextTransparency = 0
+TextButton.TextSize = 8
+TextButton.TextWrapped = true
+TextButton.TextScaled = true
+TextButton.Font = Enum.Font.SciFi
+TextButton.TextXAlignment = Enum.TextXAlignment.Center
+TextButton.TextYAlignment = Enum.TextYAlignment.Center
+
+local TextButton_UIStroke = Instance.new('UIStroke')
+TextButton_UIStroke.Parent = TextButton
+TextButton_UIStroke.Color = Color3.fromRGB(0, 0, 0)
+TextButton_UIStroke.Transparency = 0
+TextButton_UIStroke.Thickness = 2
+TextButton_UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+TextButton_UIStroke.LineJoinMode = Enum.LineJoinMode.Round
+TextButton_UIStroke.Enabled = true
+
+local TextButton_UICorner = Instance.new('UICorner')
+TextButton_UICorner.Parent = TextButton
+TextButton_UICorner.CornerRadius = UDim.new(0, 8)
+
+local mainBtn = TextButton
+
+-- 2. SLIDE IN ANIMATION
+local targetPosition = UDim2.new(0, 772, 0, -12)
+
+local slideInTween = TweenService:Create(
+    mainBtn,
+    TweenInfo.new(
+        0.8,
+        Enum.EasingStyle.Quad,
+        Enum.EasingDirection.Out
+    ),
+    { Position = targetPosition }
+)
+
+slideInTween:Play()
+
+-- 3. SHOULDER CAMERA OFFSET (instant snap)
+local function setShoulderOffset(offset)
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.CameraOffset = offset
+    end
+end
+
+-- Get the currently equipped tool (returns nil if none or if it's blacklisted)
+local function getActiveTool()
+    local char = player.Character
+    if not char then return nil end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return nil end
+    -- Check blacklist (case-insensitive)
+    if blacklistedTools[string.lower(tool.Name)] then
+        return nil
+    end
+    return tool
+end
+
+-- 4. TOOL WATCHER
+local function updateShoulderState()
+    if isArmed and getActiveTool() then
+        if not shoulderActive then
+            setShoulderOffset(Vector3.new(1.5, 0, 0))
+            shoulderActive = true
+        end
+    else
+        if shoulderActive then
+            setShoulderOffset(Vector3.new(0, 0, 0))
+            shoulderActive = false
+        end
+    end
+end
+
+local function watchCharacter(char)
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            updateShoulderState()
+        end
+    end)
+    
+    char.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            updateShoulderState()
+        end
+    end)
+    
+    updateShoulderState()
+end
+
+if player.Character then
+    watchCharacter(player.Character)
+end
+
+player.CharacterAdded:Connect(function(char)
+    watchCharacter(char)
+end)
+
+-- 5. BUTTON HANDLER (Armed toggle)
+mainBtn.MouseButton1Click:Connect(function()
+    isArmed = not isArmed
+    
+    if isArmed then
+        mainBtn.Text = "ARMED"
+        updateShoulderState()
+    else
+        mainBtn.Text = "cl6 right click"
+        setShoulderOffset(Vector3.new(0, 0, 0))
+        shoulderActive = false
+    end
+end)
